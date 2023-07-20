@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Ball Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    #ball {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background-color: red; /* Default color, change this with JavaScript */
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <div id="ball"></div>
+
+  <script>
+    // Get the ball element and its initial position
+    const ball = document.getElementById("ball");
+    let ballColor = "red";
+    let ballPosition = { x: 0, y: 0 };
+
+    // Function to set the ball color
+    function setBallColor(color) {
+      ballColor = color;
+      ball.style.backgroundColor = color;
+    }
+
+    // Function to move the ball and save its position
+    function moveBall(event) {
+      ballPosition.x = event.clientX;
+      ballPosition.y = event.clientY;
+      ball.style.left = ballPosition.x + "px";
+      ball.style.top = ballPosition.y + "px";
+    }
+
+    // Save the ball position in local storage before leaving the page
+    window.addEventListener("beforeunload", () => {
+      localStorage.setItem("ballPosition", JSON.stringify(ballPosition));
+    });
+
+    // Check if the ball position is saved in local storage and restore it
+    const savedBallPosition = localStorage.getItem("ballPosition");
+    if (savedBallPosition) {
+      ballPosition = JSON.parse(savedBallPosition);
+      ball.style.left = ballPosition.x + "px";
+      ball.style.top = ballPosition.y + "px";
+    }
+
+    // Event listener to change the ball color when clicked
+    ball.addEventListener("click", () => {
+      const newColor = prompt("Choose a ball color (e.g., red, blue, green):");
+      if (newColor) {
+        setBallColor(newColor);
+      }
+    });
+
+    // Event listener to move the ball on mousemove
+    window.addEventListener("mousemove", moveBall);
+  </script>
+</body>
+</html>
