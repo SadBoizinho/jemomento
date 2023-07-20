@@ -2,96 +2,92 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Ball Game</title>
+  <title>Ball Color Game</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
     }
-    #ball {
+    .ball {
       position: absolute;
       width: 50px;
       height: 50px;
       border-radius: 50%;
-      background-color: red; /* Default color, change this with JavaScript */
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <div id="ball"></div>
-
+  <!-- Ball color picker -->
+  <input type="color" id="colorPicker">
+  
   <script>
-    // Get the ball element and its initial position
-    const ball = document.getElementById("ball");
-    let ballColor = "red";
-    let ballPosition = { x: 0, y: 0 };
+    // Get the canvas and its context
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
 
-    // Function to set the ball color
-    function setBallColor(color) {
-      ballColor = color;
-      ball.style.backgroundColor = color;
+    // Retrieve saved balls from local storage or initialize an empty array
+    let savedBalls = JSON.parse(localStorage.getItem("balls")) || [];
+
+    // Function to draw a ball
+    function drawBall(x, y, color) {
+      context.beginPath();
+      context.fillStyle = color;
+      context.arc(x, y, 25, 0, Math.PI * 2);
+      context.fill();
+      context.closePath();
     }
 
-    // Function to move the ball and save its position
-    function moveBall(event) {
-      ballPosition.x = event.clientX;
-      ballPosition.y = event.clientY;
-      ball.style.left = ballPosition.x + "px";
-      ball.style.top = ballPosition.y + "px";
+    // Function to save ball data in local storage
+    function saveBall(x, y, color) {
+      savedBalls.push({ x, y, color });
+      localStorage.setItem("balls", JSON.stringify(savedBalls));
     }
 
-    // Save the ball position in local storage before leaving the page
-    window.addEventListener("beforeunload", () => {
-      localStorage.setItem("ballPosition", JSON.stringify(ballPosition));
+    // Function to draw all saved balls
+    function drawSavedBalls() {
+      savedBalls.forEach((ball) => {
+        drawBall(ball.x, ball.y, ball.color);
+      });
+    }
+
+    // Event listener for the color picker to change the ball color
+    const colorPicker = document.getElementById("colorPicker");
+    colorPicker.addEventListener("change", (event) => {
+      currentBallColor = event.target.value;
     });
 
-    // Check if the ball position is saved in local storage and restore it
-    const savedBallPosition = localStorage.getItem("ballPosition");
-    if (savedBallPosition) {
-      ballPosition = JSON.parse(savedBallPosition);
-      ball.style.left = ballPosition.x + "px";
-      ball.style.top = ballPosition.y + "px";
+    // Variables to track the current ball position and color
+    let currentBallColor = "red"; // Default color
+    let currentBallX = 0;
+    let currentBallY = 0;
+
+    // Function to create a new ball on the cursor position
+    function createBallOnCursor(event) {
+      const rect = canvas.getBoundingClientRect();
+      currentBallX = event.clientX - rect.left;
+      currentBallY = event.clientY - rect.top;
+      drawBall(currentBallX, currentBallY, currentBallColor);
+      saveBall(currentBallX, currentBallY, currentBallColor);
     }
 
-    // Event listener to change the ball color when clicked
-    ball.addEventListener("click", () => {
-      const newColor = prompt("Choose a ball color (e.g., red, blue, green):");
-      if (newColor) {
-        setBallColor(newColor);
+    // Event listener to create a new ball when the "E" key is pressed
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "e" || event.key === "E") {
+        createBallOnCursor(event);
       }
     });
 
-    // Event listener to move the ball on mousemove
-    window.addEventListener("mousemove", moveBall);
+    // Event listener to draw saved balls when the page loads
+    window.addEventListener("load", () => {
+      drawSavedBalls();
+    });
+
+    // Event listener to draw new balls when the canvas is clicked
+    canvas.addEventListener("click", createBallOnCursor);
   </script>
 </body>
 </html>
-<!-- Your HTML and CSS code remains the same -->
-
-<script>
-    // Rest of the code remains the same
-  
-    // Function to start following the cursor
-    function startFollowingCursor() {
-      window.addEventListener("mousemove", moveBall);
-    }
-  
-    // Function to stop following the cursor
-    function stopFollowingCursor() {
-      window.removeEventListener("mousemove", moveBall);
-    }
-  
-    // Event listener for keydown to toggle ball movement
-    window.addEventListener("keydown", (event) => {
-      if (event.key === "q" || event.key === "Q") {
-        stopFollowingCursor();
-      } else {
-        startFollowingCursor();
-      }
-    });
-  
-    // Initial state: start following the cursor
-    startFollowingCursor();
-  </script>
-  
