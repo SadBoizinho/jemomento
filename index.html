@@ -67,3 +67,31 @@
   </script>
 </body>
 </html>
+<!-- Your HTML and CSS code remains the same -->
+
+<script>
+    // Rest of the code remains the same
+  
+    // Function to start following the cursor
+    function startFollowingCursor() {
+      window.addEventListener("mousemove", moveBall);
+    }
+  
+    // Function to stop following the cursor
+    function stopFollowingCursor() {
+      window.removeEventListener("mousemove", moveBall);
+    }
+  
+    // Event listener for keydown to toggle ball movement
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "q" || event.key === "Q") {
+        stopFollowingCursor();
+      } else {
+        startFollowingCursor();
+      }
+    });
+  
+    // Initial state: start following the cursor
+    startFollowingCursor();
+  </script>
+  
