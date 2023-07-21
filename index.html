@@ -2,26 +2,36 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Ball Color Game</title>
+  <title>Formas e Bolinhas</title>
   <style>
     body {
       margin: 0;
       overflow: hidden;
     }
-    .ball {
+    .drawing {
       position: absolute;
-      border-radius: 50%;
       cursor: pointer;
     }
   </style>
 </head>
 <body>
-  <!-- Ball color picker -->
+  <!-- Color picker -->
   <input type="color" id="colorPicker">
-  <!-- Ball size controls -->
-  <label for="sizeRange">Tamanho da Bolinha:</label>
+  <!-- Size controls -->
+  <label for="sizeRange">Tamanho:</label>
   <input type="range" id="sizeRange" min="10" max="100" value="50">
-  
+  <!-- Shape selection -->
+  <select id="shapeSelect">
+    <option value="circle">Bolinha</option>
+    <option value="square">Quadrado</option>
+    <option value="triangle">Triângulo</option>
+    <option value="diamond">Losango</option>
+    <option value="ellipse">Elipse</option>
+    <option value="star">Estrela</option>
+    <option value="line">Linha</option>
+    <option value="cloud">Nuvenzinha</option>
+  </select>
+
   <script>
     // Get the canvas and its context
     const canvas = document.createElement("canvas");
@@ -30,64 +40,118 @@
     canvas.height = window.innerHeight;
     document.body.appendChild(canvas);
 
-    // Retrieve saved balls from local storage or initialize an empty array
-    let savedBalls = JSON.parse(localStorage.getItem("balls")) || [];
+    // Retrieve saved drawings from local storage or initialize an empty array
+    let savedDrawings = JSON.parse(localStorage.getItem("drawings")) || [];
 
-    // Function to draw a ball
-    function drawBall(x, y, color, size) {
+    // Function to draw a shape
+    function drawShape(x, y, color, size, shape) {
       context.beginPath();
       context.fillStyle = color;
-      context.arc(x, y, size / 2, 0, Math.PI * 2);
+
+      switch (shape) {
+        case "circle":
+          context.arc(x, y, size / 2, 0, Math.PI * 2);
+          break;
+        case "square":
+          context.rect(x - size / 2, y - size / 2, size, size);
+          break;
+        case "triangle":
+          context.moveTo(x, y - size / 2);
+          context.lineTo(x + size / 2, y + size / 2);
+          context.lineTo(x - size / 2, y + size / 2);
+          break;
+        case "diamond":
+          context.moveTo(x, y - size / 2);
+          context.lineTo(x + size / 2, y);
+          context.lineTo(x, y + size / 2);
+          context.lineTo(x - size / 2, y);
+          break;
+        case "ellipse":
+          context.ellipse(x, y, size / 2, size / 3, 0, 0, Math.PI * 2);
+          break;
+        case "star":
+          const points = 5; // Change this value to add more points to the star
+          const angle = Math.PI / points;
+          const innerRadius = size / 3;
+          const outerRadius = size / 2;
+          context.moveTo(x, y - outerRadius);
+          for (let i = 0; i < 2 * points; i++) {
+            const radius = i % 2 === 0 ? outerRadius : innerRadius;
+            context.lineTo(
+              x + radius * Math.sin(i * angle),
+              y - radius * Math.cos(i * angle)
+            );
+          }
+          break;
+        case "line":
+          context.moveTo(x - size / 2, y);
+          context.lineTo(x + size / 2, y);
+          break;
+        case "cloud":
+          context.arc(x - size / 4, y, size / 4, 0, Math.PI * 2);
+          context.arc(x + size / 4, y, size / 4, 0, Math.PI * 2);
+          context.arc(x + size / 8, y - size / 8, size / 6, 0, Math.PI * 2);
+          context.arc(x - size / 8, y + size / 8, size / 6, 0, Math.PI * 2);
+          break;
+      }
+
       context.fill();
       context.closePath();
     }
 
-    // Function to save ball data in local storage
-    function saveBall(x, y, color, size) {
-      savedBalls.push({ x, y, color, size });
-      localStorage.setItem("balls", JSON.stringify(savedBalls));
+    // Function to save drawing data in local storage
+    function saveDrawing(x, y, color, size, shape) {
+      savedDrawings.push({ x, y, color, size, shape });
+      localStorage.setItem("drawings", JSON.stringify(savedDrawings));
     }
 
-    // Function to draw all saved balls
-    function drawSavedBalls() {
-      savedBalls.forEach((ball) => {
-        drawBall(ball.x, ball.y, ball.color, ball.size);
+    // Function to draw all saved drawings
+    function drawSavedDrawings() {
+      savedDrawings.forEach((drawing) => {
+        drawShape(drawing.x, drawing.y, drawing.color, drawing.size, drawing.shape);
       });
     }
 
-    // Event listener for the color picker to change the ball color
+    // Event listener for the color picker to change the drawing color
     const colorPicker = document.getElementById("colorPicker");
     colorPicker.addEventListener("change", (event) => {
-      currentBallColor = event.target.value;
+      currentDrawingColor = event.target.value;
     });
 
-    // Event listener for the size range to adjust ball size
+    // Event listener for the size range to adjust drawing size
     const sizeRange = document.getElementById("sizeRange");
     sizeRange.addEventListener("input", (event) => {
-      currentBallSize = event.target.value;
+      currentDrawingSize = event.target.value;
     });
 
-    // Variables to track the current ball position, color, and size
-    let currentBallColor = "red"; // Default color
-    let currentBallSize = 50;
-    let currentBallX = 0;
-    let currentBallY = 0;
+    // Event listener for the shape select to choose the drawing shape
+    const shapeSelect = document.getElementById("shapeSelect");
+    shapeSelect.addEventListener("change", (event) => {
+      currentDrawingShape = event.target.value;
+    });
 
-    // Function to create a new ball on the cursor position
-    function createBallOnCursor(event) {
+    // Variables to track the current drawing position, color, size, and shape
+    let currentDrawingColor = "red"; // Default color
+    let currentDrawingSize = 50;
+    let currentDrawingShape = "circle";
+    let currentDrawingX = 0;
+    let currentDrawingY = 0;
+
+    // Function to create a new drawing on the cursor position
+    function createDrawingOnCursor(event) {
       const rect = canvas.getBoundingClientRect();
-      currentBallX = event.clientX - rect.left;
-      currentBallY = event.clientY - rect.top;
-      drawBall(currentBallX, currentBallY, currentBallColor, currentBallSize);
-      saveBall(currentBallX, currentBallY, currentBallColor, currentBallSize);
+      currentDrawingX = event.clientX - rect.left;
+      currentDrawingY = event.clientY - rect.top;
+      drawShape(currentDrawingX, currentDrawingY, currentDrawingColor, currentDrawingSize, currentDrawingShape);
+      saveDrawing(currentDrawingX, currentDrawingY, currentDrawingColor, currentDrawingSize, currentDrawingShape);
     }
 
-    // Event listener to create a new ball when the canvas is clicked
-    canvas.addEventListener("click", createBallOnCursor);
+    // Event listener to create a new drawing when the canvas is clicked
+    canvas.addEventListener("click", createDrawingOnCursor);
 
-    // Event listener to draw saved balls when the page loads
+    // Event listener to draw saved drawings when the page loads
     window.addEventListener("load", () => {
-      drawSavedBalls();
+      drawSavedDrawings();
     });
   </script>
 </body>
