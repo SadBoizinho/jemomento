@@ -1,158 +1,294 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>Formas e Bolinhas</title>
+  <title>Paint-like</title>
   <style>
-    body {
+    /* Estilos adicionais podem ser definidos aqui */
+    body, html {
       margin: 0;
       overflow: hidden;
     }
-    .drawing {
+
+    #canvas {
       position: absolute;
-      cursor: pointer;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      border: 1px solid black;
+    }
+
+    #tools {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      gap: 5px;
+    }
+
+    #tools button {
+      font-size: 16px;
+    }
+
+    #tools input[type="color"] {
+      height: 30px;
+      width: 30px;
+      padding: 0;
+    }
+
+    #tools select {
+      height: 30px;
+    }
+
+    #tools input[type="range"] {
+      width: 100px;
     }
   </style>
 </head>
 <body>
-  <!-- Color picker -->
-  <input type="color" id="colorPicker">
-  <!-- Size controls -->
-  <label for="sizeRange">Tamanho:</label>
-  <input type="range" id="sizeRange" min="10" max="100" value="50">
-  <!-- Shape selection -->
-  <select id="shapeSelect">
-    <option value="circle">Bolinha</option>
-    <option value="square">Quadrado</option>
-    <option value="triangle">Triângulo</option>
-    <option value="diamond">Losango</option>
-    <option value="ellipse">Elipse</option>
-    <option value="star">Estrela</option>
-    <option value="line">Linha</option>
-    <option value="cloud">Nuvenzinha</option>
-  </select>
+  <!-- Elementos da Interface -->
+  <canvas id="canvas"></canvas>
+  <div id="tools">
+    <button onclick="clearCanvas()">Limpar Tudo</button>
+    <!-- Adicionar o botão de borracha -->
+    <button onclick="toggleEraser()">Borracha</button>
+    <!-- Fim do botão de borracha -->
+    <input type="color" id="colorPicker" onchange="changeColor(event)">
+    <select id="toolPicker" onchange="changeTool(event)">
+      <option value="pencil">Lápis</option>
+      <option value="brush">Pincel</option>
+      <option value="rectangle">Retângulo</option>
+      <option value="circle">Círculo</option>
+    </select>
+    <select id="fileFormat">
+      <option value="png">PNG</option>
+      <option value="jpeg">JPEG</option>
+      <option value="jpg">JPG</option>
+    </select>
+    <input type="range" id="sizeRange" min="1" max="100" value="5" onchange="changeSize(event)">
+    <button onclick="saveImage()">Salvar</button>
+    <input type="file" id="imageUploader" onchange="uploadImage(event)">
+  </div>
 
   <script>
-    // Get the canvas and its context
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    document.body.appendChild(canvas);
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let isEraserActive = false;
+    let currentColor = '#000000';
+    let currentTool = 'pencil';
+    let currentSize = 5;
+    let isDrawing = false;
+    let startX = 0;
+    let startY = 0;
+    let endX = 0;
+    let endY = 0;
+    let imageObj = null; // Variável para armazenar a imagem
+    let isImageDragging = false;
+    let isResizing = false;
+    let resizeIndex = -1; // Índice da forma geométrica a ser redimensionada
+    let shapes = []; // Array para armazenar as formas geométricas desenhadas
 
-    // Retrieve saved drawings from local storage or initialize an empty array
-    let savedDrawings = JSON.parse(localStorage.getItem("drawings")) || [];
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawImageObject(imageObj); // Redesenhar a imagem caso ela exista
+      redrawShapes();
+    }
 
-    // Function to draw a shape
-    function drawShape(x, y, color, size, shape) {
-      context.beginPath();
-      context.fillStyle = color;
+    function clearCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      shapes = [];
+    }
 
-      switch (shape) {
-        case "circle":
-          context.arc(x, y, size / 2, 0, Math.PI * 2);
-          break;
-        case "square":
-          context.rect(x - size / 2, y - size / 2, size, size);
-          break;
-        case "triangle":
-          context.moveTo(x, y - size / 2);
-          context.lineTo(x + size / 2, y + size / 2);
-          context.lineTo(x - size / 2, y + size / 2);
-          break;
-        case "diamond":
-          context.moveTo(x, y - size / 2);
-          context.lineTo(x + size / 2, y);
-          context.lineTo(x, y + size / 2);
-          context.lineTo(x - size / 2, y);
-          break;
-        case "ellipse":
-          context.ellipse(x, y, size / 2, size / 3, 0, 0, Math.PI * 2);
-          break;
-        case "star":
-          const points = 5; // Change this value to add more points to the star
-          const angle = Math.PI / points;
-          const innerRadius = size / 3;
-          const outerRadius = size / 2;
-          context.moveTo(x, y - outerRadius);
-          for (let i = 0; i < 2 * points; i++) {
-            const radius = i % 2 === 0 ? outerRadius : innerRadius;
-            context.lineTo(
-              x + radius * Math.sin(i * angle),
-              y - radius * Math.cos(i * angle)
-            );
+    function toggleEraser() {
+      isEraserActive = !isEraserActive;
+      // Trocar a cor para branca se a borracha estiver ativa
+      currentColor = isEraserActive ? '#FFFFFF' : '#000000';
+    }
+
+    function changeColor(event) {
+      currentColor = event.target.value;
+      // Desativar a borracha quando a cor for selecionada
+      isEraserActive = false;
+    }
+
+    function changeTool(event) {
+      currentTool = event.target.value;
+    }
+
+    function changeSize(event) {
+      currentSize = event.target.value;
+    }
+
+    function drawLine(x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = currentSize;
+      ctx.stroke();
+    }
+
+    function drawRectangle(x, y, width, height) {
+      ctx.fillStyle = currentColor;
+      ctx.fillRect(x, y, width, height);
+    }
+
+    function drawCircle(x, y, radius) {
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
+      ctx.fillStyle = currentColor;
+      ctx.fill();
+    }
+
+    function saveImage() {
+      const fileFormat = document.getElementById('fileFormat').value;
+      const link = document.createElement('a');
+      link.download = `desenho.${fileFormat}`;
+      link.href = canvas.toDataURL(`image/${fileFormat}`);
+      link.click();
+    }
+
+    function handleMouseDown(event) {
+      isDrawing = true;
+      startX = event.offsetX;
+      startY = event.offsetY;
+      endX = startX;
+      endY = startY;
+
+      // Verificar se o mouse está sobre a imagem
+      if (imageObj &&
+          startX >= imageObj.x && startX <= imageObj.x + imageWidth &&
+          startY >= imageObj.y && startY <= imageObj.y + imageHeight) {
+        isImageDragging = true;
+        imageStartX = startX - imageObj.x;
+        imageStartY = startY - imageObj.y;
+      } else {
+        // Verificar se o mouse está sobre alguma forma geométrica para redimensionar ou arrastar
+        resizeIndex = -1;
+        isResizing = false;
+        for (let i = shapes.length - 1; i >= 0; i--) {
+          const shape = shapes[i];
+          if (isMouseInsideShape(shape, startX, startY)) {
+            resizeIndex = i;
+            isResizing = true;
+            break;
           }
-          break;
-        case "line":
-          context.moveTo(x - size / 2, y);
-          context.lineTo(x + size / 2, y);
-          break;
-        case "cloud":
-          context.arc(x - size / 4, y, size / 4, 0, Math.PI * 2);
-          context.arc(x + size / 4, y, size / 4, 0, Math.PI * 2);
-          context.arc(x + size / 8, y - size / 8, size / 6, 0, Math.PI * 2);
-          context.arc(x - size / 8, y + size / 8, size / 6, 0, Math.PI * 2);
-          break;
+        }
+      }
+    }
+
+    function isMouseInsideShape(shape, mouseX, mouseY) {
+      if (shape.type === 'rectangle') {
+        const { x, y, width, height } = shape;
+        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
+      } else if (shape.type === 'circle') {
+        const { x, y, radius } = shape;
+        const distance = Math.sqrt((mouseX - x) * 2 + (mouseY - y) * 2);
+        return distance <= radius;
+      }
+      return false;
+    }
+
+    function handleMouseUp() {
+      isDrawing = false;
+      endX = 0;
+      endY = 0;
+      isImageDragging = false;
+      isResizing = false;
+    }
+
+    function handleMouseMove(event) {
+      if (!isDrawing && !isImageDragging && !isResizing) return;
+
+      endX = event.offsetX;
+      endY = event.offsetY;
+
+      if (isImageDragging && imageObj) {
+        imageObj.x = endX - imageStartX;
+        imageObj.y = endY - imageStartY;
+        drawImageObject(imageObj);
+      } else if (isResizing && resizeIndex >= 0) {
+        resizeShape(resizeIndex, endX, endY);
+        redrawShapes();
+      } else if (currentTool === 'pencil' || currentTool === 'brush') {
+        drawLine(startX, startY, endX, endY);
+        startX = endX;
+        startY = endY;
+      } else if (currentTool === 'rectangle') {
+        drawRectangle(startX, startY, endX - startX, endY - startY);
+      } else if (currentTool === 'circle') {
+        const radius = Math.sqrt((endX - startX) * 2 + (endY - startY) * 2);
+        drawCircle(startX, startY, radius);
       }
 
-      context.fill();
-      context.closePath();
+      if (isEraserActive) {
+        ctx.clearRect(endX - currentSize / 2, endY - currentSize / 2, currentSize, currentSize);
+      }
     }
 
-    // Function to save drawing data in local storage
-    function saveDrawing(x, y, color, size, shape) {
-      savedDrawings.push({ x, y, color, size, shape });
-      localStorage.setItem("drawings", JSON.stringify(savedDrawings));
+    function drawImageObject(imageObj) {
+      if (!imageObj) return;
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(imageObj.image, imageObj.x, imageObj.y, imageWidth, imageHeight);
+      redrawShapes();
     }
 
-    // Function to draw all saved drawings
-    function drawSavedDrawings() {
-      savedDrawings.forEach((drawing) => {
-        drawShape(drawing.x, drawing.y, drawing.color, drawing.size, drawing.shape);
+    function uploadImage(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        const img = new Image();
+        img.onload = function () {
+          // Defina o tamanho inicial e a posição da imagem como o centro do canvas
+          const centerX = canvas.width / 2;
+          const centerY = canvas.height / 2;
+          imageWidth = canvas.width / 3; // Ajuste o tamanho da imagem como 1/3 do canvas
+          imageHeight = (imageWidth * img.height) / img.width;
+
+          imageObj = {
+            image: img,
+            x: centerX - imageWidth / 2,
+            y: centerY - imageHeight / 2,
+          };
+
+          drawImageObject(imageObj);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function redrawShapes() {
+      shapes.forEach(shape => {
+        if (shape.type === 'rectangle') {
+          drawRectangle(shape.x, shape.y, shape.width, shape.height);
+        } else if (shape.type === 'circle') {
+          drawCircle(shape.x, shape.y, shape.radius);
+        }
       });
     }
 
-    // Event listener for the color picker to change the drawing color
-    const colorPicker = document.getElementById("colorPicker");
-    colorPicker.addEventListener("change", (event) => {
-      currentDrawingColor = event.target.value;
-    });
-
-    // Event listener for the size range to adjust drawing size
-    const sizeRange = document.getElementById("sizeRange");
-    sizeRange.addEventListener("input", (event) => {
-      currentDrawingSize = event.target.value;
-    });
-
-    // Event listener for the shape select to choose the drawing shape
-    const shapeSelect = document.getElementById("shapeSelect");
-    shapeSelect.addEventListener("change", (event) => {
-      currentDrawingShape = event.target.value;
-    });
-
-    // Variables to track the current drawing position, color, size, and shape
-    let currentDrawingColor = "red"; // Default color
-    let currentDrawingSize = 50;
-    let currentDrawingShape = "circle";
-    let currentDrawingX = 0;
-    let currentDrawingY = 0;
-
-    // Function to create a new drawing on the cursor position
-    function createDrawingOnCursor(event) {
-      const rect = canvas.getBoundingClientRect();
-      currentDrawingX = event.clientX - rect.left;
-      currentDrawingY = event.clientY - rect.top;
-      drawShape(currentDrawingX, currentDrawingY, currentDrawingColor, currentDrawingSize, currentDrawingShape);
-      saveDrawing(currentDrawingX, currentDrawingY, currentDrawingColor, currentDrawingSize, currentDrawingShape);
+    function resizeShape(index, mouseX, mouseY) {
+      const shape = shapes[index];
+      if (shape.type === 'rectangle') {
+        shape.width = mouseX - shape.x;
+        shape.height = mouseY - shape.y;
+      } else if (shape.type === 'circle') {
+        shape.radius = Math.sqrt((mouseX - shape.x) * 2 + (mouseY - shape.y) * 2);
+      }
     }
 
-    // Event listener to create a new drawing when the canvas is clicked
-    canvas.addEventListener("click", createDrawingOnCursor);
+    window.addEventListener('resize', resizeCanvas);
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mouseup', handleMouseUp);
+    canvas.addEventListener('mousemove', handleMouseMove);
 
-    // Event listener to draw saved drawings when the page loads
-    window.addEventListener("load", () => {
-      drawSavedDrawings();
-    });
+    resizeCanvas(); // Chamar resizeCanvas no início para ajustar ao tamanho inicial da janela.
+
   </script>
 </body>
 </html>
