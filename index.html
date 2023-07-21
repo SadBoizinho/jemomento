@@ -10,8 +10,6 @@
     }
     .ball {
       position: absolute;
-      width: 50px;
-      height: 50px;
       border-radius: 50%;
       cursor: pointer;
     }
@@ -20,6 +18,9 @@
 <body>
   <!-- Ball color picker -->
   <input type="color" id="colorPicker">
+  <!-- Ball size controls -->
+  <label for="sizeRange">Tamanho da Bolinha:</label>
+  <input type="range" id="sizeRange" min="10" max="100" value="50">
   
   <script>
     // Get the canvas and its context
@@ -33,24 +34,24 @@
     let savedBalls = JSON.parse(localStorage.getItem("balls")) || [];
 
     // Function to draw a ball
-    function drawBall(x, y, color) {
+    function drawBall(x, y, color, size) {
       context.beginPath();
       context.fillStyle = color;
-      context.arc(x, y, 25, 0, Math.PI * 2);
+      context.arc(x, y, size / 2, 0, Math.PI * 2);
       context.fill();
       context.closePath();
     }
 
     // Function to save ball data in local storage
-    function saveBall(x, y, color) {
-      savedBalls.push({ x, y, color });
+    function saveBall(x, y, color, size) {
+      savedBalls.push({ x, y, color, size });
       localStorage.setItem("balls", JSON.stringify(savedBalls));
     }
 
     // Function to draw all saved balls
     function drawSavedBalls() {
       savedBalls.forEach((ball) => {
-        drawBall(ball.x, ball.y, ball.color);
+        drawBall(ball.x, ball.y, ball.color, ball.size);
       });
     }
 
@@ -60,8 +61,15 @@
       currentBallColor = event.target.value;
     });
 
-    // Variables to track the current ball position and color
+    // Event listener for the size range to adjust ball size
+    const sizeRange = document.getElementById("sizeRange");
+    sizeRange.addEventListener("input", (event) => {
+      currentBallSize = event.target.value;
+    });
+
+    // Variables to track the current ball position, color, and size
     let currentBallColor = "red"; // Default color
+    let currentBallSize = 50;
     let currentBallX = 0;
     let currentBallY = 0;
 
@@ -70,24 +78,17 @@
       const rect = canvas.getBoundingClientRect();
       currentBallX = event.clientX - rect.left;
       currentBallY = event.clientY - rect.top;
-      drawBall(currentBallX, currentBallY, currentBallColor);
-      saveBall(currentBallX, currentBallY, currentBallColor);
+      drawBall(currentBallX, currentBallY, currentBallColor, currentBallSize);
+      saveBall(currentBallX, currentBallY, currentBallColor, currentBallSize);
     }
 
-    // Event listener to create a new ball when the "E" key is pressed
-    window.addEventListener("keydown", (event) => {
-      if (event.key === "e" || event.key === "E") {
-        createBallOnCursor(event);
-      }
-    });
+    // Event listener to create a new ball when the canvas is clicked
+    canvas.addEventListener("click", createBallOnCursor);
 
     // Event listener to draw saved balls when the page loads
     window.addEventListener("load", () => {
       drawSavedBalls();
     });
-
-    // Event listener to draw new balls when the canvas is clicked
-    canvas.addEventListener("click", createBallOnCursor);
   </script>
 </body>
 </html>
