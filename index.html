@@ -1,298 +1,48 @@
 <!DOCTYPE html>
-<html>
-<head>
-  <title>Paint-like</title>
-  <style>
-    /* Estilos adicionais podem ser definidos aqui */
-    body, html {
-      margin: 0;
-      overflow: hidden;
-    }
-
-    #canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      border: 1px solid black;
-    }
-
-    #tools {
-      position: absolute;
-      top: 10px;
-      left: 10px;
-      display: flex;
-      gap: 5px;
-    }
-
-    #tools button {
-      font-size: 16px;
-    }
-
-    #tools input[type="color"] {
-      height: 30px;
-      width: 30px;
-      padding: 0;
-    }
-
-    #tools select {
-      height: 30px;
-    }
-
-    #tools input[type="range"] {
-      width: 100px;
-    }
-  </style>
-</head>
-<body>
-  <!-- Elementos da Interface -->
-  <canvas id="canvas"></canvas>
-  <div id="tools">
-    <button onclick="clearCanvas()">Limpar Tudo</button>
-    <!-- Adicionar o botão de borracha -->
-    <button onclick="toggleEraser()">Borracha</button>
-    <!-- Fim do botão de borracha -->
-    <input type="color" id="colorPicker" onchange="changeColor(event)">
-    <select id="toolPicker" onchange="changeTool(event)">
-      <option value="pencil">Lápis</option>
-      <option value="brush">Pincel</option>
-      <option value="rectangle">Retângulo</option>
-      <option value="circle">Círculo</option>
-    </select>
-    <select id="fileFormat">
-      <option value="png">PNG</option>
-      <option value="jpeg">JPEG</option>
-      <option value="jpg">JPG</option>
-    </select>
-    <input type="range" id="sizeRange" min="1" max="100" value="5" onchange="changeSize(event)">
-    <button onclick="saveImage()">Salvar</button>
-    <input type="file" id="imageUploader" onchange="uploadImage(event)">
-    <!-- Botões Desfazer e Refazer -->
-    <button onclick="undo()">Desfazer</button>
-    <button onclick="redo()">Refazer</button>
-  </div>
-
-  <script>
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    let isEraserActive = false;
-    let currentColor = '#000000';
-    let currentTool = 'pencil';
-    let currentSize = 5;
-    let isDrawing = false;
-    let startX = 0;
-    let startY = 0;
-    let endX = 0;
-    let endY = 0;
-    let imageObj = null; // Variável para armazenar a imagem
-    let isImageDragging = false;
-    let isResizing = false;
-    let resizeIndex = -1; // Índice da forma geométrica a ser redimensionada
-    let shapes = []; // Array para armazenar as formas geométricas desenhadas
-    let undoStack = []; // Pilha de comandos para desfazer
-    let redoStack = []; // Pilha de comandos para refazer
-    let previousState = null; // Estado anterior do desenho
-
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-      drawImageObject(imageObj); // Redesenhar a imagem caso ela exista
-      redrawShapes();
-    }
-
-    function clearCanvas() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      shapes = [];
-      undoStack = [];
-      redoStack = [];
-    }
-
-    function toggleEraser() {
-      isEraserActive = !isEraserActive;
-      // Trocar a cor para branca se a borracha estiver ativa
-      currentColor = isEraserActive ? '#FFFFFF' : '#000000';
-    }
-
-    function changeColor(event) {
-      currentColor = event.target.value;
-      // Desativar a borracha quando a cor for selecionada
-      isEraserActive = false;
-    }
-
-    function changeTool(event) {
-      currentTool = event.target.value;
-    }
-
-    function changeSize(event) {
-      currentSize = event.target.value;
-    }
-
-    function drawLine(x1, y1, x2, y2) {
-      ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.lineTo(x2, y2);
-      ctx.strokeStyle = currentColor;
-      ctx.lineWidth = currentSize;
-      ctx.stroke();
-    }
-
-    function drawRectangle(x, y, width, height) {
-      ctx.fillStyle = currentColor;
-      ctx.fillRect(x, y, width, height);
-    }
-
-    function drawCircle(x, y, radius) {
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, 2 * Math.PI);
-      ctx.fillStyle = currentColor;
-      ctx.fill();
-    }
-
-    function saveImage() {
-      const fileFormat = document.getElementById('fileFormat').value;
-      const link = document.createElement('a');
-      link.download = `desenho.${fileFormat}`;
-      link.href = canvas.toDataURL(`image/${fileFormat}`);
-      link.click();
-    }
-
-    function handleMouseDown(event) {
-      isDrawing = true;
-      startX = event.offsetX;
-      startY = event.offsetY;
-      endX = startX;
-      endY = startY;
-
-      // Verificar se o mouse está sobre a imagem
-      if (imageObj &&
-          startX >= imageObj.x && startX <= imageObj.x + imageWidth &&
-          startY >= imageObj.y && startY <= imageObj.y + imageHeight) {
-        isImageDragging = true;
-        imageStartX = startX - imageObj.x;
-        imageStartY = startY - imageObj.y;
-      } else {
-        // Verificar se o mouse está sobre alguma forma geométrica para redimensionar ou arrastar
-        resizeIndex = -1;
-        isResizing = false;
-        for (let i = shapes.length - 1; i >= 0; i--) {
-          const shape = shapes[i];
-          if (isMouseInsideShape(shape, startX, startY)) {
-            resizeIndex = i;
-            isResizing = true;
-            break;
-          }
-        }
-      }
-    }
-
-    function isMouseInsideShape(shape, mouseX, mouseY) {
-      if (shape.type === 'rectangle') {
-        const { x, y, width, height } = shape;
-        return mouseX >= x && mouseX <= x + width && mouseY >= y && mouseY <= y + height;
-      } else if (shape.type === 'circle') {
-        const { x, y, radius } = shape;
-        const distance = Math.sqrt((mouseX - x) * 2 + (mouseY - y) * 2);
-        return distance <= radius;
-      }
-      return false;
-    }
-
-    function handleMouseUp() {
-      isDrawing = false;
-      endX = 0;
-      endY = 0;
-      isImageDragging = false;
-      isResizing = false;
-
-      // Salvar o rabisco desenhado ou redimensionado na pilha de comandos de desfazer
-      if (currentTool === 'pencil' || currentTool === 'brush' || currentTool === 'rectangle' || currentTool === 'circle') {
-        const shape = createShapeObject(startX, startY, endX, endY);
-        if (shape) {
-          shapes.push(shape);
-          undoStack.push({ action: 'draw', shapes: shapes.slice() });
-          redoStack = []; // Limpar a pilha de comandos de refazer quando um novo rabisco é feito
-        }
-      }
-    }
-
-    function createShapeObject(x1, y1, x2, y2) {
-      if (currentTool === 'rectangle') {
-        return {
-          type: 'rectangle',
-          x: Math.min(x1, x2),
-          y: Math.min(y1, y2),
-          width: Math.abs(x2 - x1),
-          height: Math.abs(y2 - y1),
-          color: currentColor,
-        };
-      } else if (currentTool === 'circle') {
-        const radius = Math.sqrt((x2 - x1) * 2 + (y2 - y1) * 2);
-        return {
-          type: 'circle',
-          x: x1,
-          y: y1,
-          radius,
-          color: currentColor,
-        };
-      }
-    }
-
-    function resizeShape(index, mouseX, mouseY) {
-      const shape = shapes[index];
-      if (shape.type === 'rectangle') {
-        shape.width = mouseX - shape.x;
-        shape.height = mouseY - shape.y;
-      } else if (shape.type === 'circle') {
-        shape.radius = Math.sqrt((mouseX - shape.x) * 2 + (mouseY - shape.y) * 2);
-      }
-    }
-
-    function undo() {
-      if (undoStack.length > 0) {
-        redoStack.push({ action: 'draw', shapes: shapes.slice() });
-        shapes = undoStack.pop().shapes;
-        redrawShapes();
-      }
-    }
-
-    function redo() {
-      if (redoStack.length > 0) {
-        undoStack.push({ action: 'draw', shapes: shapes.slice() });
-        shapes = redoStack.pop().shapes;
-        redrawShapes();
-      }
-    }
-
-    function redrawShapes() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawImageObject(imageObj);
-
-      shapes.forEach(shape => {
-        if (shape.type === 'rectangle') {
-          drawRectangle(shape.x, shape.y, shape.width, shape.height);
-        } else if (shape.type === 'circle') {
-          drawCircle(shape.x, shape.y, shape.radius);
-        }
-      });
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mousemove', handleMouseMove);
-
-    // Eventos de teclado
-    document.addEventListener('keydown', function (event) {
-      if (event.ctrlKey && event.key === 'z') {
-        undo();
-      } else if (event.ctrlKey && event.key === 'y') {
-        redo();
-      }
-    });
-
-    resizeCanvas(); // Chamar resizeCanvas no início para ajustar ao tamanho inicial da janela.
-
-  </script>
-</body>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@500"
+    />
+    <title>HTML Preview</title>
+    <link rel="stylesheet" type="text/css" href="styles.css" />
+  </head>
+  <body>
+    <div id="firejet-html-app">
+      <div class="home-principal-home-principal">
+        <div class="home-principal-home-1x">
+          <div class="home-principal-rectangle-25x">
+            <div class="home-principal-layout-2">
+              <div class="home-principal-monalisa-96e-922062x"></div>
+            </div>
+            <div class="home-principal-layout-3">
+              <div class="home-principal-homem-de-ferro-1x"></div>
+            </div>
+            <div class="home-principal-layout-4">
+              <div class="home-principal-rectangle-24x">
+                <p class="home-principal-vote-agora">Vote Agora</p>
+              </div>
+            </div>
+            <div class="home-principal-layout-5">
+              <p class="home-principal-aberta-avotao-par">
+                Aberta a votação para melhor Cosplay e melhor HQ da SNCT 2023
+              </p>
+            </div>
+            <div class="home-principal-layout-6">
+              <p class="home-principal-aberta-avotao-par-1">
+                Aberta a votação para melhor Cosplay e melhor HQ da SNCT 2023
+                Aberta a votação para melhor Cosplay e melhor HQ da SNCT 2023
+              </p>
+            </div>
+            <div class="home-principal-layout-7">
+              <div class="home-principal-ifrocol-lateral-curto-1x"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
 </html>
