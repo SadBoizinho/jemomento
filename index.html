@@ -68,6 +68,9 @@
     <input type="range" id="sizeRange" min="1" max="100" value="5" onchange="changeSize(event)">
     <button onclick="saveImage()">Salvar</button>
     <input type="file" id="imageUploader" onchange="uploadImage(event)">
+    <!-- Botões Desfazer e Refazer -->
+    <button onclick="undo()">Desfazer</button>
+    <button onclick="redo()">Refazer</button>
   </div>
 
   <script>
@@ -87,6 +90,9 @@
     let isResizing = false;
     let resizeIndex = -1; // Índice da forma geométrica a ser redimensionada
     let shapes = []; // Array para armazenar as formas geométricas desenhadas
+    let undoStack = []; // Pilha de comandos para desfazer
+    let redoStack = []; // Pilha de comandos para refazer
+    let previousState = null; // Estado anterior do desenho
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;
@@ -98,6 +104,8 @@
     function clearCanvas() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       shapes = [];
+      undoStack = [];
+      redoStack = [];
     }
 
     function toggleEraser() {
@@ -196,80 +204,38 @@
       endY = 0;
       isImageDragging = false;
       isResizing = false;
-    }
 
-    function handleMouseMove(event) {
-      if (!isDrawing && !isImageDragging && !isResizing) return;
-
-      endX = event.offsetX;
-      endY = event.offsetY;
-
-      if (isImageDragging && imageObj) {
-        imageObj.x = endX - imageStartX;
-        imageObj.y = endY - imageStartY;
-        drawImageObject(imageObj);
-      } else if (isResizing && resizeIndex >= 0) {
-        resizeShape(resizeIndex, endX, endY);
-        redrawShapes();
-      } else if (currentTool === 'pencil' || currentTool === 'brush') {
-        drawLine(startX, startY, endX, endY);
-        startX = endX;
-        startY = endY;
-      } else if (currentTool === 'rectangle') {
-        drawRectangle(startX, startY, endX - startX, endY - startY);
-      } else if (currentTool === 'circle') {
-        const radius = Math.sqrt((endX - startX) * 2 + (endY - startY) * 2);
-        drawCircle(startX, startY, radius);
-      }
-
-      if (isEraserActive) {
-        ctx.clearRect(endX - currentSize / 2, endY - currentSize / 2, currentSize, currentSize);
-      }
-    }
-
-    function drawImageObject(imageObj) {
-      if (!imageObj) return;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(imageObj.image, imageObj.x, imageObj.y, imageWidth, imageHeight);
-      redrawShapes();
-    }
-
-    function uploadImage(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-
-      const reader = new FileReader();
-      reader.onload = function (e) {
-        const img = new Image();
-        img.onload = function () {
-          // Defina o tamanho inicial e a posição da imagem como o centro do canvas
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
-          imageWidth = canvas.width / 3; // Ajuste o tamanho da imagem como 1/3 do canvas
-          imageHeight = (imageWidth * img.height) / img.width;
-
-          imageObj = {
-            image: img,
-            x: centerX - imageWidth / 2,
-            y: centerY - imageHeight / 2,
-          };
-
-          drawImageObject(imageObj);
-        };
-        img.src = e.target.result;
-      };
-      reader.readAsDataURL(file);
-    }
-
-    function redrawShapes() {
-      shapes.forEach(shape => {
-        if (shape.type === 'rectangle') {
-          drawRectangle(shape.x, shape.y, shape.width, shape.height);
-        } else if (shape.type === 'circle') {
-          drawCircle(shape.x, shape.y, shape.radius);
+      // Salvar o rabisco desenhado ou redimensionado na pilha de comandos de desfazer
+      if (currentTool === 'pencil' || currentTool === 'brush' || currentTool === 'rectangle' || currentTool === 'circle') {
+        const shape = createShapeObject(startX, startY, endX, endY);
+        if (shape) {
+          shapes.push(shape);
+          undoStack.push({ action: 'draw', shapes: shapes.slice() });
+          redoStack = []; // Limpar a pilha de comandos de refazer quando um novo rabisco é feito
         }
-      });
+      }
+    }
+
+    function createShapeObject(x1, y1, x2, y2) {
+      if (currentTool === 'rectangle') {
+        return {
+          type: 'rectangle',
+          x: Math.min(x1, x2),
+          y: Math.min(y1, y2),
+          width: Math.abs(x2 - x1),
+          height: Math.abs(y2 - y1),
+          color: currentColor,
+        };
+      } else if (currentTool === 'circle') {
+        const radius = Math.sqrt((x2 - x1) * 2 + (y2 - y1) * 2);
+        return {
+          type: 'circle',
+          x: x1,
+          y: y1,
+          radius,
+          color: currentColor,
+        };
+      }
     }
 
     function resizeShape(index, mouseX, mouseY) {
@@ -282,10 +248,48 @@
       }
     }
 
+    function undo() {
+      if (undoStack.length > 0) {
+        redoStack.push({ action: 'draw', shapes: shapes.slice() });
+        shapes = undoStack.pop().shapes;
+        redrawShapes();
+      }
+    }
+
+    function redo() {
+      if (redoStack.length > 0) {
+        undoStack.push({ action: 'draw', shapes: shapes.slice() });
+        shapes = redoStack.pop().shapes;
+        redrawShapes();
+      }
+    }
+
+    function redrawShapes() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawImageObject(imageObj);
+
+      shapes.forEach(shape => {
+        if (shape.type === 'rectangle') {
+          drawRectangle(shape.x, shape.y, shape.width, shape.height);
+        } else if (shape.type === 'circle') {
+          drawCircle(shape.x, shape.y, shape.radius);
+        }
+      });
+    }
+
     window.addEventListener('resize', resizeCanvas);
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mouseup', handleMouseUp);
     canvas.addEventListener('mousemove', handleMouseMove);
+
+    // Eventos de teclado
+    document.addEventListener('keydown', function (event) {
+      if (event.ctrlKey && event.key === 'z') {
+        undo();
+      } else if (event.ctrlKey && event.key === 'y') {
+        redo();
+      }
+    });
 
     resizeCanvas(); // Chamar resizeCanvas no início para ajustar ao tamanho inicial da janela.
 
